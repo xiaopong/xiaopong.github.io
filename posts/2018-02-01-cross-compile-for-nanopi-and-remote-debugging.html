@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>XP's Solilloquy - Cross compile for NanoPi and remote debugging</title>
+        <link rel="stylesheet" href="../css/default.css" />
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">XP's solilloquy</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>Cross compile for NanoPi and remote debugging</h1>
+            <article>
+    <section class="header">
+        Posted on February  1, 2018
+        
+            by xp
+        
+    </section>
+    <section>
+        <p>Recently, I was called in to provide technical training to a young team of a new client, a startup developing remote control devices. I won’t go into details of the idea which they are cooking, just to say that the team of C++ developers working on the device are bright young programmers, except the team does not have a team leader to manage the software process.</p>
+<p>Another problem is that both founders of the company are not technical persons, but they are feeling that the productivity could use some improvement.</p>
+<p>The first day I got there, I saw every C++ programmer has a Nanopi board attached to their laptop computer and was feverishly hacking away on it. Taking a closer look, I saw some are writing their code directly on the board, while others write their code on the laptop, but would copy over to the board for compiling and debugging.</p>
+<p>That is the first thing that needs some improvement. Here is the setup to code on Linux on your workstation, cross-compile for the target (the Nanopi with Arm CPU in this case), run it on the target and do remote debugging from the workstation.</p>
+<p>First of all, it is assumed that you have already installed the usual suspect packages for C/C++ development on your workstation. For cross-compiling for the Nanopi board (or any other arm-based board), you need to install the following (here, I’m assuming you are running Debian or some Debian-derived distros) on your workstation:</p>
+<pre><code>sudo apt-get install binutils-arm-linux-gnueabihf cpp-arm-linux-gnueabihf gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf binutils-multiarch gdb-multiarch</code></pre>
+<p>As we want to remotely debug our program on the target board, we will install the following on the target:</p>
+<pre><code>sudo apt-get install gdbserver</code></pre>
+<p>Now, let’s create a small test project with the following code:</p>
+<pre><code>#include &lt;iostream&gt;
+
+void test1()
+{
+    int meaning = 42;
+    std::cout &lt;&lt; &quot;The meaning of life is &quot; &lt;&lt; meaning &lt;&lt; std::endl;
+}
+
+int main()
+{
+    test1();
+    return 0;
+}</code></pre>
+<p>To cross-compile your project without having to install the necessary target libraries on your workstation, the easiest way is to grab a copy of the system libraries from your target board itself. Let’s create a script called <code>sync-nano</code> in your project directory to fetch it:</p>
+<pre><code>#!/bin/bash
+HOST=$1
+rsync -rlzv --delete-after root@${HOST}:/{usr,lib} nano-m1-rootfs/</code></pre>
+<p>When you run</p>
+<pre><code>./sync-nano nanohost</code></pre>
+<p>where <code>nanohost</code> being the hostname or IP address of your Nanopi board, it will grab the directories <code>/usr</code> and <code>/lib</code> from the target board, and put them under the directory <code>nano-m1-rootfs</code>.</p>
+<p>What is important about this method is that, we have the target libraries in one location, clean and neat. There is no littering all over the place. If you need to develop for multiple targets, it is very important to keep the house clean.</p>
+<p>Let us build the project with <code>cmake</code>, and let’s create a <code>CMakeLists.txt</code> file:</p>
+<pre><code>cmake_minimum_required (VERSION 3.9)
+set (LANGUAGES CXX)
+
+set (CMAKE_SYSTEM_NAME Linux)
+set (CMAKE_SYSTEM_VERSION 1)
+set (CMAKE_C_COMPILER /usr/bin/arm-linux-gnueabihf-gcc)
+set (CMAKE_CXX_COMPILER /usr/bin/arm-linux-gnueabihf-g++)
+set (CMAKE_FIND_ROOT_PATH $ENV{HOME}/test-nano/nano-m1-rootfs)
+set (CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set (CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set (CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+
+set (CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/build)
+set (LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR}/lib)
+set (EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin)
+
+add_definitions (&quot;-std=c++14 -g -Wall -Wextra -Werror=return-type&quot;)
+
+include_directories(${PROJECT_SOURCE_DIR}/include)
+set (testsrc
+  src/test1.cpp
+)
+
+add_executable (test1 ${testsrc})</code></pre>
+<p>The build toolchain file above has nothing special, except telling it that we want to use the C/C++ compilers for arm-based target, and that they should look in the <code>nano-m1-rootfs</code> directory for headers and libraries. For more details on cmake for cross compiling, please visit the <a href="href=%22https://cmake.org/Wiki/CMake_Cross_Compiling%22">wiki here</a>.</p>
+<p>Now, we are ready to build the project. Let’s do the following:</p>
+<pre><code>mkdir build
+cd build
+cmake ..
+make</code></pre>
+<p>Now, we can copy the compiled program onto the board:</p>
+<pre><code>scp bin/test1 xp@nanohost:</code></pre>
+<p>Let’s run the program on the board, and we want to debug it from our workstation.</p>
+<pre><code>xp@nanopim1:~$ gdbserver :8888 ./test1
+Process ./test1 created; pid = 5047
+Listening on port 8888</code></pre>
+<p>We just started our program with <code>gdbserver</code> listening on port <code>8888</code>, and waiting for connection from a remote debugger.</p>
+<p>Now, on our workstation, still in the <code>build</code> directory, let’s start the <code>gdb</code> debugger and connect to the remote target board:</p>
+<pre><code>xp @ λ ★ gdb-multiarch bin/test1
+GNU gdb (Debian 7.12-6+b1) 7.12.0.20161007-git
+Copyright (C) 2016 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later &lt;http://gnu.org/licenses/gpl.html&gt;
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law. Type &quot;show copying&quot;
+and &quot;show warranty&quot; for details.
+This GDB was configured as &quot;x86_64-linux-gnu&quot;.
+Type &quot;show configuration&quot; for configuration details.
+For bug reporting instructions, please see:
+&lt;http://www.gnu.org/software/gdb/bugs/&gt;.
+Find the GDB manual and other documentation resources online at:
+&lt;http://www.gnu.org/software/gdb/documentation/&gt;.
+For help, type &quot;help&quot;.
+Type &quot;apropos word&quot; to search for commands related to &quot;word&quot;...
+Reading symbols from bin/test1...done.
+(gdb) set sysroot ../nano-m1-rootfs/
+(gdb) break main
+Breakpoint 1 at 0x856: file /home/xp/test-nano/src/test1.cpp, line 12.
+(gdb) target remote 192.168.1.3:8888
+Remote debugging using 192.168.1.3:8888
+Reading symbols from ../nano-m1-rootfs/lib/ld-linux-armhf.so.3...(no debugging symbols found)...done.
+0xb6fd7980 in ?? () from ../nano-m1-rootfs/lib/ld-linux-armhf.so.3
+(gdb) continue
+Continuing.
+
+Breakpoint 1, main (argc=1, argv=0xbefff784) at /home/xp/test-nano/src/test1.cpp:12
+12 test1();
+(gdb) break test1
+Breakpoint 2 at 0x400806: file /home/xp/test-nano/src/test1.cpp, line 5.
+(gdb) continue
+Continuing.
+
+Breakpoint 2, test1 () at /home/xp/test-nano/src/test1.cpp:5
+5 int meaning = 42;
+(gdb) n
+7 std::cout &lt;&lt; &quot;The meaning of life is &quot; &lt;&lt; meaning &lt;&lt; std::endl;
+(gdb) continue
+Continuing.
+[Inferior 1 (process 5047) exited normally]</code></pre>
+<p>As you can see, we just went through a normal debugging session, as if the program is running on the workstation.</p>
+<p>A few things need explanation.</p>
+<p>We have to start the debugger <code>dbg-multiarch</code>, and not the native <code>gdb</code> on your workstation.</p>
+<p>Then, we use the <code>set sysroot</code> command to specify the local directory that contains copies of target libraries in the corresponding subdirectories. And that is the <code>nano-m1-rootfs</code> directory that we had created earlier, and that we had copies of the <code>/usr</code> and <code>/lib</code> directories fetched from the board.</p>
+<p>And from here on, everything would just work as if the program is run locally, on the workstation.</p>
+<p>When the program exits, <code>gdbserver</code> on the remote target also exits:</p>
+<pre><code>xp@nanopim1:~$ gdbserver :8888 ./test1
+Process ./test1 created; pid = 5047
+Listening on port 8888
+Remote debugging from host 192.168.1.9
+The meaning of life is 42
+
+Child exited with status 0
+xp@nanopim1:~$</code></pre>
+<p>As we can see here, <code>gdbserver</code> on the board got a connection from host <code>192.168.1.9</code>, which is the IP address of my workstation, and as the program runs, it prints the phrase <code>The meaning of life is 42</code>, as expected.</p>
+<p>With the method described above, you can also start up <code>gdbserver</code> and attach to a running process, such as:</p>
+<pre><code>xp@nanopim1:~$ gdbserver :8888 --attach 4321
+Attached; pid = 4321
+Listening on port 8888</code></pre>
+<p>Here, we have <code>gdbserver</code> attached to process <code>4321</code>, and is waiting for a remote connection. From your workstation, you can connect normally, as described above, and now, you have a local <code>gdb</code> controlling a remote process <code>4321</code> on the target board.</p>
+<p>That’s it. You can do a lot more fun things with <code>gdbserver</code> as your remote stub. Time for you to experiment now.</p>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>XP's Solilloquy - How to cache user geolocation with Hazelcast and search for nearby users</title>
+        <link rel="stylesheet" href="../css/default.css" />
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">XP's solilloquy</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>How to cache user geolocation with Hazelcast and search for nearby users</h1>
+            <article>
+    <section class="header">
+        Posted on May 22, 2014
+        
+            by xp
+        
+    </section>
+    <section>
+        <p>Hazelcast is great as a distributed object cache, it provides all the infrastructure as an in-memory key/value store for caching any type of objects. It even provides some query features to query based on object attributes, albeit the query feature is quite primitive as compared to what we have in relational database. But it does the work. And if it doesn’t, you can extend it.</p>
+<p>Let’s say you are developing some kind of social app, and you are caching user information in Hazelcast, along with user’s geolocation information. Now, you probably want to search for nearby users who are within a certain distance. How could you do a query like that in Hazelcast?</p>
+<p>This post is going to describe how to search for nearby users in your Hazelcast cache, by implementing a new query predicate.</p>
+<p>To keep thing simple in the example below, let’s assume that you define your <code>CachedUser</code> class as follow:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb1-1"><a href="#cb1-1"></a><span class="kw">public</span> <span class="kw">class</span> MyCachedUser <span class="kw">implements</span> <span class="bu">Serializable</span></span>
+<span id="cb1-2"><a href="#cb1-2"></a>{</span>
+<span id="cb1-3"><a href="#cb1-3"></a>    <span class="kw">private</span> <span class="dt">static</span> <span class="dt">final</span> <span class="dt">long</span> serialVersionUID = -<span class="dv">2253075711571121144L</span>;</span>
+<span id="cb1-4"><a href="#cb1-4"></a>    <span class="kw">private</span> <span class="bu">String</span> id = <span class="kw">null</span>;</span>
+<span id="cb1-5"><a href="#cb1-5"></a>    <span class="kw">private</span> <span class="dt">double</span> latitude;</span>
+<span id="cb1-6"><a href="#cb1-6"></a>    <span class="kw">private</span> <span class="dt">double</span> longitude;</span>
+<span id="cb1-7"><a href="#cb1-7"></a>    </span>
+<span id="cb1-8"><a href="#cb1-8"></a>    <span class="kw">public</span> <span class="fu">MyCachedUser</span>()</span>
+<span id="cb1-9"><a href="#cb1-9"></a>    {</span>
+<span id="cb1-10"><a href="#cb1-10"></a>        </span>
+<span id="cb1-11"><a href="#cb1-11"></a>    }</span>
+<span id="cb1-12"><a href="#cb1-12"></a>    </span>
+<span id="cb1-13"><a href="#cb1-13"></a>    <span class="kw">public</span> <span class="fu">MyCachedUser</span>(<span class="bu">String</span> id, <span class="dt">double</span> latitude, <span class="dt">double</span> longitude)</span>
+<span id="cb1-14"><a href="#cb1-14"></a>    {</span>
+<span id="cb1-15"><a href="#cb1-15"></a>        <span class="kw">this</span>.<span class="fu">id</span> = id;</span>
+<span id="cb1-16"><a href="#cb1-16"></a>        <span class="kw">this</span>.<span class="fu">latitude</span> = latitude;</span>
+<span id="cb1-17"><a href="#cb1-17"></a>        <span class="kw">this</span>.<span class="fu">longitude</span> = longitude;</span>
+<span id="cb1-18"><a href="#cb1-18"></a>    }</span>
+<span id="cb1-19"><a href="#cb1-19"></a>    </span>
+<span id="cb1-20"><a href="#cb1-20"></a>    <span class="kw">public</span> <span class="bu">String</span> <span class="fu">getId</span>()</span>
+<span id="cb1-21"><a href="#cb1-21"></a>    {</span>
+<span id="cb1-22"><a href="#cb1-22"></a>        <span class="kw">return</span> id;</span>
+<span id="cb1-23"><a href="#cb1-23"></a>    }</span>
+<span id="cb1-24"><a href="#cb1-24"></a>    <span class="kw">public</span> <span class="dt">void</span> <span class="fu">setId</span>(<span class="bu">String</span> id)</span>
+<span id="cb1-25"><a href="#cb1-25"></a>    {</span>
+<span id="cb1-26"><a href="#cb1-26"></a>        <span class="kw">this</span>.<span class="fu">id</span> = id;</span>
+<span id="cb1-27"><a href="#cb1-27"></a>    }</span>
+<span id="cb1-28"><a href="#cb1-28"></a>    <span class="kw">public</span> <span class="dt">double</span> <span class="fu">getLatitude</span>()</span>
+<span id="cb1-29"><a href="#cb1-29"></a>    {</span>
+<span id="cb1-30"><a href="#cb1-30"></a>        <span class="kw">return</span> latitude;</span>
+<span id="cb1-31"><a href="#cb1-31"></a>    }</span>
+<span id="cb1-32"><a href="#cb1-32"></a>    <span class="kw">public</span> <span class="dt">void</span> <span class="fu">setLatitude</span>(<span class="dt">double</span> l)</span>
+<span id="cb1-33"><a href="#cb1-33"></a>    {</span>
+<span id="cb1-34"><a href="#cb1-34"></a>        <span class="kw">this</span>.<span class="fu">latitude</span> = l;</span>
+<span id="cb1-35"><a href="#cb1-35"></a>    }</span>
+<span id="cb1-36"><a href="#cb1-36"></a>    <span class="kw">public</span> <span class="dt">double</span> <span class="fu">getLongitude</span>()</span>
+<span id="cb1-37"><a href="#cb1-37"></a>    {</span>
+<span id="cb1-38"><a href="#cb1-38"></a>        <span class="kw">return</span> longitude;</span>
+<span id="cb1-39"><a href="#cb1-39"></a>    }</span>
+<span id="cb1-40"><a href="#cb1-40"></a>    <span class="kw">public</span> <span class="dt">void</span> <span class="fu">setLongitude</span>(<span class="dt">double</span> l)</span>
+<span id="cb1-41"><a href="#cb1-41"></a>    {</span>
+<span id="cb1-42"><a href="#cb1-42"></a>        <span class="kw">this</span>.<span class="fu">longitude</span> = l;</span>
+<span id="cb1-43"><a href="#cb1-43"></a>    }</span>
+<span id="cb1-44"><a href="#cb1-44"></a>}</span></code></pre></div>
+<p>That is a very simple class for caching user information. We only have an ID, and the coordinates as latitude and longitude. Obviously, instead of implementing the default Java <code>Serializable</code> interface, you can also implement any of the serialization mechanism as provided in Hazelcast, or using any third-party serialization framework.</p>
+<p>Before we go further, we need to be able to calculate the distance between two points, if you have the coordinates. I am not going into details explaining how to calculate that, you can find all the math formulas and detailed <a href="http://en.wikipedia.org/wiki/Geographical_distance">explanation on Wikipedia</a>. Here’s a simple Java implementation:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb2-1"><a href="#cb2-1"></a><span class="kw">public</span> <span class="kw">class</span> GeoUtil</span>
+<span id="cb2-2"><a href="#cb2-2"></a>{</span>
+<span id="cb2-3"><a href="#cb2-3"></a>    <span class="kw">public</span> <span class="dt">static</span> <span class="dt">final</span> <span class="dt">double</span> EARTH_RADIUS = <span class="fl">6371.0d</span>;</span>
+<span id="cb2-4"><a href="#cb2-4"></a>    </span>
+<span id="cb2-5"><a href="#cb2-5"></a>    <span class="kw">public</span> <span class="dt">static</span> <span class="dt">double</span> <span class="fu">getDistance</span>(<span class="dt">double</span> lat1, <span class="dt">double</span> lng1, <span class="dt">double</span> lat2, <span class="dt">double</span> lng2)</span>
+<span id="cb2-6"><a href="#cb2-6"></a>    {</span>
+<span id="cb2-7"><a href="#cb2-7"></a>        <span class="dt">double</span> dLat = <span class="fu">toRadian</span>(lat2 - lat1);</span>
+<span id="cb2-8"><a href="#cb2-8"></a>        <span class="dt">double</span> dLng = <span class="fu">toRadian</span>(lng2 - lng1);</span>
+<span id="cb2-9"><a href="#cb2-9"></a></span>
+<span id="cb2-10"><a href="#cb2-10"></a>        <span class="dt">double</span> a = <span class="bu">Math</span>.<span class="fu">pow</span>(<span class="bu">Math</span>.<span class="fu">sin</span>(dLat / <span class="dv">2</span>), <span class="dv">2</span>) + <span class="bu">Math</span>.<span class="fu">cos</span>(<span class="fu">toRadian</span>(lat1))</span>
+<span id="cb2-11"><a href="#cb2-11"></a>                * <span class="bu">Math</span>.<span class="fu">cos</span>(<span class="fu">toRadian</span>(lat2)) * <span class="bu">Math</span>.<span class="fu">pow</span>(<span class="bu">Math</span>.<span class="fu">sin</span>(dLng / <span class="dv">2</span>), <span class="dv">2</span>);</span>
+<span id="cb2-12"><a href="#cb2-12"></a></span>
+<span id="cb2-13"><a href="#cb2-13"></a>        <span class="dt">double</span> c = <span class="dv">2</span> * <span class="bu">Math</span>.<span class="fu">atan2</span>(<span class="bu">Math</span>.<span class="fu">sqrt</span>(a), <span class="bu">Math</span>.<span class="fu">sqrt</span>(<span class="dv">1</span> - a));</span>
+<span id="cb2-14"><a href="#cb2-14"></a></span>
+<span id="cb2-15"><a href="#cb2-15"></a>        <span class="kw">return</span> EARTH_RADIUS * c; <span class="co">// returns result in kilometers</span></span>
+<span id="cb2-16"><a href="#cb2-16"></a>    }</span>
+<span id="cb2-17"><a href="#cb2-17"></a></span>
+<span id="cb2-18"><a href="#cb2-18"></a>    <span class="kw">public</span> <span class="dt">static</span> <span class="dt">double</span> <span class="fu">toRadian</span>(<span class="dt">double</span> degrees)</span>
+<span id="cb2-19"><a href="#cb2-19"></a>    {</span>
+<span id="cb2-20"><a href="#cb2-20"></a>        <span class="kw">return</span> (degrees * <span class="bu">Math</span>.<span class="fu">PI</span>) / <span class="fl">180.0d</span>;</span>
+<span id="cb2-21"><a href="#cb2-21"></a>    }</span>
+<span id="cb2-22"><a href="#cb2-22"></a>}</span></code></pre></div>
+<p>Now that we have the required tools behind us, we can look at how to search for nearby users in Hazelcast. The query features in Hazelcast are not enough to make sophisticated searches. However, we can implement our own predicate to perform the searches that we want. Let’s implement a predicate, called <code>GeoDistancePredicate</code>, which is used to calculate distance between two points when we perform the search:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb3-1"><a href="#cb3-1"></a><span class="kw">public</span> <span class="kw">class</span> GeoDistancePredicate <span class="kw">implements</span> <span class="bu">Predicate</span>&lt;<span class="bu">String</span>, CachedUser&gt;, DataSerializable</span>
+<span id="cb3-2"><a href="#cb3-2"></a>{</span>
+<span id="cb3-3"><a href="#cb3-3"></a>    <span class="kw">private</span> <span class="dt">double</span> latitude;</span>
+<span id="cb3-4"><a href="#cb3-4"></a>    <span class="kw">private</span> <span class="dt">double</span> longitude;</span>
+<span id="cb3-5"><a href="#cb3-5"></a>    <span class="kw">private</span> <span class="dt">double</span> distance;</span>
+<span id="cb3-6"><a href="#cb3-6"></a>    </span>
+<span id="cb3-7"><a href="#cb3-7"></a>    <span class="kw">public</span> <span class="fu">GeoDistancePredicate</span>()</span>
+<span id="cb3-8"><a href="#cb3-8"></a>    {</span>
+<span id="cb3-9"><a href="#cb3-9"></a>    }</span>
+<span id="cb3-10"><a href="#cb3-10"></a>    </span>
+<span id="cb3-11"><a href="#cb3-11"></a>    <span class="kw">public</span> <span class="fu">GeoDistancePredicate</span>(<span class="dt">double</span> lat, <span class="dt">double</span> lng, <span class="dt">double</span> dist)</span>
+<span id="cb3-12"><a href="#cb3-12"></a>    {</span>
+<span id="cb3-13"><a href="#cb3-13"></a>        <span class="kw">this</span>.<span class="fu">latitude</span> = lat;</span>
+<span id="cb3-14"><a href="#cb3-14"></a>        <span class="kw">this</span>.<span class="fu">longitude</span> = lng;</span>
+<span id="cb3-15"><a href="#cb3-15"></a>        <span class="kw">this</span>.<span class="fu">distance</span> = dist;</span>
+<span id="cb3-16"><a href="#cb3-16"></a>    }</span>
+<span id="cb3-17"><a href="#cb3-17"></a>    </span>
+<span id="cb3-18"><a href="#cb3-18"></a></span>
+<span id="cb3-19"><a href="#cb3-19"></a>    <span class="at">@Override</span></span>
+<span id="cb3-20"><a href="#cb3-20"></a>    <span class="kw">public</span> <span class="dt">void</span> <span class="fu">readData</span>(ObjectDataInput in) <span class="kw">throws</span> <span class="bu">IOException</span></span>
+<span id="cb3-21"><a href="#cb3-21"></a>    {</span>
+<span id="cb3-22"><a href="#cb3-22"></a>        latitude = in.<span class="fu">readDouble</span>();</span>
+<span id="cb3-23"><a href="#cb3-23"></a>        longitude = in.<span class="fu">readDouble</span>();</span>
+<span id="cb3-24"><a href="#cb3-24"></a>        distance = in.<span class="fu">readDouble</span>();</span>
+<span id="cb3-25"><a href="#cb3-25"></a>    }</span>
+<span id="cb3-26"><a href="#cb3-26"></a></span>
+<span id="cb3-27"><a href="#cb3-27"></a>    <span class="at">@Override</span></span>
+<span id="cb3-28"><a href="#cb3-28"></a>    <span class="kw">public</span> <span class="dt">void</span> <span class="fu">writeData</span>(ObjectDataOutput out) <span class="kw">throws</span> <span class="bu">IOException</span></span>
+<span id="cb3-29"><a href="#cb3-29"></a>    {</span>
+<span id="cb3-30"><a href="#cb3-30"></a>        out.<span class="fu">writeDouble</span>(latitude);</span>
+<span id="cb3-31"><a href="#cb3-31"></a>        out.<span class="fu">writeDouble</span>(longitude);</span>
+<span id="cb3-32"><a href="#cb3-32"></a>        out.<span class="fu">writeDouble</span>(distance);</span>
+<span id="cb3-33"><a href="#cb3-33"></a>    }</span>
+<span id="cb3-34"><a href="#cb3-34"></a></span>
+<span id="cb3-35"><a href="#cb3-35"></a>    <span class="at">@Override</span></span>
+<span id="cb3-36"><a href="#cb3-36"></a>    <span class="kw">public</span> <span class="dt">boolean</span> <span class="fu">apply</span>(Entry&lt;<span class="bu">String</span>, CachedUser&gt; entry)</span>
+<span id="cb3-37"><a href="#cb3-37"></a>    {</span>
+<span id="cb3-38"><a href="#cb3-38"></a>        <span class="dt">boolean</span> res = <span class="kw">false</span>;</span>
+<span id="cb3-39"><a href="#cb3-39"></a>        CachedUser u = entry.<span class="fu">getValue</span>();</span>
+<span id="cb3-40"><a href="#cb3-40"></a>        <span class="dt">double</span> dist = GeoUtil.<span class="fu">getDistance</span>(latitude, longitude, u.<span class="fu">getLatitude</span>(), u.<span class="fu">getLongitude</span>());</span>
+<span id="cb3-41"><a href="#cb3-41"></a>        res = (dist &lt;= distance);</span>
+<span id="cb3-42"><a href="#cb3-42"></a>        <span class="kw">return</span> res;</span>
+<span id="cb3-43"><a href="#cb3-43"></a>    }</span>
+<span id="cb3-44"><a href="#cb3-44"></a></span>
+<span id="cb3-45"><a href="#cb3-45"></a>}</span></code></pre></div>
+<p>This class implements the <code>Predicate</code> interface. We pass in the GPS coordinates and the distance limit between the two points. As you can see, the most important code is in the <code>apply()</code> method, which is called to compare if a user is nearby, i.e. within the defined distance.</p>
+<p>This class also implements the <code>DataSerializable</code> interface, as when you perform the searches, the predicate object will be sent to where the cached data are located, which might be on a different machine. Again, you can implement any serializable interface, as long as your object can be serialized and deserialized back.</p>
+<p>Now that we have another piece of the puzzles in place, we can query nearby users as:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb4-1"><a href="#cb4-1"></a>    <span class="bu">Predicate</span> predicate = <span class="kw">new</span> <span class="fu">GeoDistancePredicate</span>(lat, lng, dist);</span>
+<span id="cb4-2"><a href="#cb4-2"></a>    <span class="bu">Collection</span> usersFound = cachedUserMap.<span class="fu">values</span>(predicate);</span></code></pre></div>
+<p>That’s it. Isn’t this neat? You get back a list of users whose current location is within the defined distance.</p>
+<p>Ok, but what if we want, not only the list of users, but also the distance of each user as well? For this, we need to do extra work, as there’s no easy way to plug the requirement into the Hazelcast predicate and returned list. So we have to calculate the distance (again!) once we have the user list. Let’s create another class called <code>DistancedCachedUser</code>, which contain the distance value and the cached user information:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb5-1"><a href="#cb5-1"></a><span class="kw">public</span> <span class="kw">class</span> DistancedCachedUser <span class="kw">implements</span> <span class="bu">Comparable</span></span>
+<span id="cb5-2"><a href="#cb5-2"></a>{</span>
+<span id="cb5-3"><a href="#cb5-3"></a>    <span class="kw">private</span> CachedUser user;</span>
+<span id="cb5-4"><a href="#cb5-4"></a>    <span class="kw">private</span> <span class="dt">double</span> distance;</span>
+<span id="cb5-5"><a href="#cb5-5"></a>    </span>
+<span id="cb5-6"><a href="#cb5-6"></a>    <span class="kw">public</span> <span class="fu">DistancedCachedUser</span>(CachedUser user, <span class="dt">double</span> distance)</span>
+<span id="cb5-7"><a href="#cb5-7"></a>    {</span>
+<span id="cb5-8"><a href="#cb5-8"></a>        <span class="kw">this</span>.<span class="fu">user</span> = user;</span>
+<span id="cb5-9"><a href="#cb5-9"></a>        <span class="kw">this</span>.<span class="fu">distance</span> = distance;</span>
+<span id="cb5-10"><a href="#cb5-10"></a>    }</span>
+<span id="cb5-11"><a href="#cb5-11"></a>    </span>
+<span id="cb5-12"><a href="#cb5-12"></a>    <span class="kw">public</span> <span class="dt">double</span> <span class="fu">getDistance</span>()</span>
+<span id="cb5-13"><a href="#cb5-13"></a>    {</span>
+<span id="cb5-14"><a href="#cb5-14"></a>        <span class="kw">return</span> distance;</span>
+<span id="cb5-15"><a href="#cb5-15"></a>    }</span>
+<span id="cb5-16"><a href="#cb5-16"></a>    </span>
+<span id="cb5-17"><a href="#cb5-17"></a>    <span class="kw">public</span> CachedUser <span class="fu">getUser</span>()</span>
+<span id="cb5-18"><a href="#cb5-18"></a>    {</span>
+<span id="cb5-19"><a href="#cb5-19"></a>        <span class="kw">return</span> user;</span>
+<span id="cb5-20"><a href="#cb5-20"></a>    }</span>
+<span id="cb5-21"><a href="#cb5-21"></a></span>
+<span id="cb5-22"><a href="#cb5-22"></a>    <span class="at">@Override</span></span>
+<span id="cb5-23"><a href="#cb5-23"></a>    <span class="kw">public</span> <span class="dt">int</span> <span class="fu">compareTo</span>(DistancedCachedUser other)</span>
+<span id="cb5-24"><a href="#cb5-24"></a>    {</span>
+<span id="cb5-25"><a href="#cb5-25"></a>        <span class="kw">if</span> (<span class="kw">this</span>.<span class="fu">distance</span> &lt; other.<span class="fu">distance</span>)</span>
+<span id="cb5-26"><a href="#cb5-26"></a>            <span class="kw">return</span> -<span class="dv">1</span>;</span>
+<span id="cb5-27"><a href="#cb5-27"></a>        <span class="kw">else</span> <span class="kw">if</span> (<span class="kw">this</span>.<span class="fu">distance</span> == other.<span class="fu">distance</span>)</span>
+<span id="cb5-28"><a href="#cb5-28"></a>            <span class="kw">return</span> <span class="dv">0</span>;</span>
+<span id="cb5-29"><a href="#cb5-29"></a>        <span class="kw">else</span></span>
+<span id="cb5-30"><a href="#cb5-30"></a>            <span class="kw">return</span> <span class="dv">1</span>;</span>
+<span id="cb5-31"><a href="#cb5-31"></a>    }</span>
+<span id="cb5-32"><a href="#cb5-32"></a>}</span></code></pre></div>
+<p>This class also implements the <code>Comparable</code> interface, as we might want to sort the returned user list from the closest to the farthest.</p>
+<p>Finally, here is the method to search for nearby users, and returned a list with the distance value for each user:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb6-1"><a href="#cb6-1"></a>    <span class="kw">public</span> <span class="bu">Collection</span> <span class="fu">getNearbyUsers</span>(<span class="dt">double</span> lat, <span class="dt">double</span> lng, <span class="dt">double</span> dist)</span>
+<span id="cb6-2"><a href="#cb6-2"></a>    {</span>
+<span id="cb6-3"><a href="#cb6-3"></a>        <span class="bu">ArrayList</span> list = <span class="kw">new</span> <span class="bu">ArrayList</span>();</span>
+<span id="cb6-4"><a href="#cb6-4"></a>        <span class="bu">Predicate</span> predicate = <span class="kw">new</span> <span class="fu">GeoDistancePredicate</span>(lat, lng, dist);</span>
+<span id="cb6-5"><a href="#cb6-5"></a></span>
+<span id="cb6-6"><a href="#cb6-6"></a>        <span class="bu">Collection</span> usersFound = cachedUserMap.<span class="fu">values</span>(predicate);</span>
+<span id="cb6-7"><a href="#cb6-7"></a>        <span class="kw">for</span> (CachedUser u : usersFound)</span>
+<span id="cb6-8"><a href="#cb6-8"></a>        {</span>
+<span id="cb6-9"><a href="#cb6-9"></a>            DistancedCachedUser cu = <span class="kw">new</span> <span class="fu">DistancedCachedUser</span>(u, GeoUtil.<span class="fu">getDistance</span>(lat, lng, u.<span class="fu">latitude</span>, u.<span class="fu">longitude</span>));</span>
+<span id="cb6-10"><a href="#cb6-10"></a>            list.<span class="fu">add</span>(cu);</span>
+<span id="cb6-11"><a href="#cb6-11"></a>        }</span>
+<span id="cb6-12"><a href="#cb6-12"></a>        <span class="bu">Collections</span>.<span class="fu">sort</span>(list);</span>
+<span id="cb6-13"><a href="#cb6-13"></a>        <span class="kw">return</span> list;</span>
+<span id="cb6-14"><a href="#cb6-14"></a>    }</span></code></pre></div>
+<p>That’s all. The last step was not as elegant and efficient as we might want, but it does the job.</p>
+<p>Try it out, you can do a lot more by implementing your own predicates to perform the searches.</p>
+<p>This is great. However, as soon as you have a lot of cached data, you would find that searching for nearby users is quite slow. What happened? In a next post, I’ll show how to improve on this.</p>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>
