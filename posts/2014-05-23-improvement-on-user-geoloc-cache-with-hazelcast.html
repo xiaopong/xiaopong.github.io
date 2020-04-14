@@ -29,6 +29,11 @@
             by xp
         
     </section>
+    <section class="info">
+        
+            Tags: <a href="../tags/Programming.html">Programming</a>, <a href="../tags/Java.html">Java</a>, <a href="../tags/Hazelcast.html">Hazelcast</a>
+        
+    </section>
     <section>
         <p>In the last post, we have seen how to cache user geolocation data in Hazelcast, and search for nearby users. This was great. However, as soon as you have a lot of cached data, you would find that searching for nearby users is quite slow. What was wrong?</p>
 <p>As you have remembered, we have implemented a <code>GeoDistancePredicate</code> which computes to see if a user is within the distance limit to a specific point. The way this predicate works is that, for every entry cached in memory, Hazelcast would invoke the <code>apply()</code> method to see if the entry satisfies the distance limit criterion. If you have cached a large data set, this method will loop through all entries in the whole data set, one by one. Therefore, this is basically a <em>O(n)</em> problem. There’s no way it can be fast, if you have a large data set.</p>
@@ -68,30 +73,30 @@
 <span id="cb3-2"><a href="#cb3-2"></a>{</span>
 <span id="cb3-3"><a href="#cb3-3"></a>    <span class="kw">public</span> <span class="dt">static</span> <span class="dt">final</span> <span class="bu">String</span> KEY_LATITUDE          = <span class="st">&quot;latitude&quot;</span>;</span>
 <span id="cb3-4"><a href="#cb3-4"></a>    <span class="kw">public</span> <span class="dt">static</span> <span class="dt">final</span> <span class="bu">String</span> KEY_LONGITUDE         = <span class="st">&quot;longitude&quot;</span>;</span>
-<span id="cb3-5"><a href="#cb3-5"></a>    </span>
+<span id="cb3-5"><a href="#cb3-5"></a></span>
 <span id="cb3-6"><a href="#cb3-6"></a>    <span class="kw">private</span> <span class="dt">double</span> latitude;</span>
 <span id="cb3-7"><a href="#cb3-7"></a>    <span class="kw">private</span> <span class="dt">double</span> longitude;</span>
 <span id="cb3-8"><a href="#cb3-8"></a></span>
 <span id="cb3-9"><a href="#cb3-9"></a>    <span class="kw">public</span> <span class="fu">GeoCoordinate</span>()</span>
 <span id="cb3-10"><a href="#cb3-10"></a>    {</span>
 <span id="cb3-11"><a href="#cb3-11"></a>    }</span>
-<span id="cb3-12"><a href="#cb3-12"></a>    </span>
+<span id="cb3-12"><a href="#cb3-12"></a></span>
 <span id="cb3-13"><a href="#cb3-13"></a>    <span class="kw">public</span> <span class="fu">GeoCoordinate</span>(<span class="dt">double</span> lat, <span class="dt">double</span> lng)</span>
 <span id="cb3-14"><a href="#cb3-14"></a>    {</span>
 <span id="cb3-15"><a href="#cb3-15"></a>        <span class="kw">this</span>.<span class="fu">latitude</span> = lat;</span>
 <span id="cb3-16"><a href="#cb3-16"></a>        <span class="kw">this</span>.<span class="fu">longitude</span> = lng;</span>
 <span id="cb3-17"><a href="#cb3-17"></a>    }</span>
-<span id="cb3-18"><a href="#cb3-18"></a>    </span>
+<span id="cb3-18"><a href="#cb3-18"></a></span>
 <span id="cb3-19"><a href="#cb3-19"></a>    <span class="kw">public</span> <span class="dt">double</span> <span class="fu">getLatitude</span>()</span>
 <span id="cb3-20"><a href="#cb3-20"></a>    {</span>
 <span id="cb3-21"><a href="#cb3-21"></a>        <span class="kw">return</span> latitude;</span>
 <span id="cb3-22"><a href="#cb3-22"></a>    }</span>
-<span id="cb3-23"><a href="#cb3-23"></a>    </span>
+<span id="cb3-23"><a href="#cb3-23"></a></span>
 <span id="cb3-24"><a href="#cb3-24"></a>    <span class="kw">public</span> <span class="dt">void</span> <span class="fu">setLatitude</span>(<span class="dt">double</span> lat)</span>
 <span id="cb3-25"><a href="#cb3-25"></a>    {</span>
 <span id="cb3-26"><a href="#cb3-26"></a>        <span class="kw">this</span>.<span class="fu">latitude</span> = lat;</span>
 <span id="cb3-27"><a href="#cb3-27"></a>    }</span>
-<span id="cb3-28"><a href="#cb3-28"></a>    </span>
+<span id="cb3-28"><a href="#cb3-28"></a></span>
 <span id="cb3-29"><a href="#cb3-29"></a>    <span class="kw">public</span> <span class="dt">double</span> <span class="fu">getLongitude</span>()</span>
 <span id="cb3-30"><a href="#cb3-30"></a>    {</span>
 <span id="cb3-31"><a href="#cb3-31"></a>        <span class="kw">return</span> longitude;</span>
@@ -100,7 +105,7 @@
 <span id="cb3-34"><a href="#cb3-34"></a>    {</span>
 <span id="cb3-35"><a href="#cb3-35"></a>        <span class="kw">this</span>.<span class="fu">longitude</span> = lng;</span>
 <span id="cb3-36"><a href="#cb3-36"></a>    }</span>
-<span id="cb3-37"><a href="#cb3-37"></a>    </span>
+<span id="cb3-37"><a href="#cb3-37"></a></span>
 <span id="cb3-38"><a href="#cb3-38"></a>    <span class="at">@Override</span></span>
 <span id="cb3-39"><a href="#cb3-39"></a>    <span class="kw">public</span> <span class="dt">int</span> <span class="fu">getFactoryId</span>()</span>
 <span id="cb3-40"><a href="#cb3-40"></a>    {</span>
@@ -143,12 +148,12 @@
 <span id="cb4-7"><a href="#cb4-7"></a>    <span class="kw">private</span> <span class="dt">double</span> latCeiling;</span>
 <span id="cb4-8"><a href="#cb4-8"></a>    <span class="kw">private</span> <span class="dt">double</span> lngFloor;</span>
 <span id="cb4-9"><a href="#cb4-9"></a>    <span class="kw">private</span> <span class="dt">double</span> lngCeiling;</span>
-<span id="cb4-10"><a href="#cb4-10"></a>    </span>
+<span id="cb4-10"><a href="#cb4-10"></a></span>
 <span id="cb4-11"><a href="#cb4-11"></a>    <span class="kw">public</span> <span class="fu">GeoDistancePredicate</span>()</span>
 <span id="cb4-12"><a href="#cb4-12"></a>    {</span>
 <span id="cb4-13"><a href="#cb4-13"></a>        <span class="kw">super</span>(<span class="st">&quot;latitude&quot;</span>);</span>
 <span id="cb4-14"><a href="#cb4-14"></a>    }</span>
-<span id="cb4-15"><a href="#cb4-15"></a>    </span>
+<span id="cb4-15"><a href="#cb4-15"></a></span>
 <span id="cb4-16"><a href="#cb4-16"></a>    <span class="kw">public</span> <span class="fu">GeoDistancePredicate</span>(<span class="dt">double</span> lat, <span class="dt">double</span> lng, <span class="dt">double</span> dist)</span>
 <span id="cb4-17"><a href="#cb4-17"></a>    {</span>
 <span id="cb4-18"><a href="#cb4-18"></a>        <span class="kw">super</span>(<span class="st">&quot;latitude&quot;</span>);</span>
@@ -158,7 +163,7 @@
 <span id="cb4-22"><a href="#cb4-22"></a></span>
 <span id="cb4-23"><a href="#cb4-23"></a>        <span class="fu">init</span>();</span>
 <span id="cb4-24"><a href="#cb4-24"></a>    }</span>
-<span id="cb4-25"><a href="#cb4-25"></a>    </span>
+<span id="cb4-25"><a href="#cb4-25"></a></span>
 <span id="cb4-26"><a href="#cb4-26"></a>    <span class="kw">private</span> <span class="dt">void</span> <span class="fu">init</span>()</span>
 <span id="cb4-27"><a href="#cb4-27"></a>    {</span>
 <span id="cb4-28"><a href="#cb4-28"></a>        GeoCoordinate c = GeoUtil.<span class="fu">fromBearingDistance</span>(latitude, longitude, GeoUtil.<span class="fu">NORTH</span>, distance);</span>
@@ -170,7 +175,7 @@
 <span id="cb4-34"><a href="#cb4-34"></a>        c = GeoUtil.<span class="fu">fromBearingDistance</span>(latitude, longitude, GeoUtil.<span class="fu">WEST</span>, distance);</span>
 <span id="cb4-35"><a href="#cb4-35"></a>        lngFloor = c.<span class="fu">getLongitude</span>();</span>
 <span id="cb4-36"><a href="#cb4-36"></a>    }</span>
-<span id="cb4-37"><a href="#cb4-37"></a>    </span>
+<span id="cb4-37"><a href="#cb4-37"></a></span>
 <span id="cb4-38"><a href="#cb4-38"></a>    <span class="at">@Override</span></span>
 <span id="cb4-39"><a href="#cb4-39"></a>    <span class="kw">public</span> <span class="dt">void</span> <span class="fu">readData</span>(ObjectDataInput in) <span class="kw">throws</span> <span class="bu">IOException</span></span>
 <span id="cb4-40"><a href="#cb4-40"></a>    {</span>

@@ -29,6 +29,11 @@
             by xp
         
     </section>
+    <section class="info">
+        
+            Tags: <a href="../tags/Programming.html">Programming</a>, <a href="../tags/Java.html">Java</a>, <a href="../tags/Hazelcast.html">Hazelcast</a>
+        
+    </section>
     <section>
         <p>Recently, I was working on a project that requires to cache a lot of data for fast access, including images and thumbnails, as well as pure Java objects. Therefore, we set out to search for a system that can handle the workload, in a distributed manner. As the project is developed using Java, a Java solution is prefered.</p>
 <p>One of the options we looked at is <a href="http://www.hazelcast.org">Hazelcast</a>. Hazelcast labels itself as the in-memory data grid. Whatever that means, it means an in-memory cache pool to us. What is nice about Hazelcast is that it does not have any external dependency (besides Log4J), and clustering feature works nicely out of the box. The API is extremely simple. It took us a total of five minutes to get a cluster of three machines up for testing.</p>
@@ -52,7 +57,7 @@
 <span id="cb1-12"><a href="#cb1-12"></a>    <span class="kw">public</span> <span class="dt">static</span> <span class="dt">void</span> <span class="fu">testObjectCache</span>(<span class="bu">String</span>[] args)</span>
 <span id="cb1-13"><a href="#cb1-13"></a>    {</span>
 <span id="cb1-14"><a href="#cb1-14"></a>        ObjectCacheTest t = <span class="kw">null</span>;</span>
-<span id="cb1-15"><a href="#cb1-15"></a>        <span class="dt">int</span> count = <span class="dv">0</span>; </span>
+<span id="cb1-15"><a href="#cb1-15"></a>        <span class="dt">int</span> count = <span class="dv">0</span>;</span>
 <span id="cb1-16"><a href="#cb1-16"></a>        <span class="dt">int</span> maxMem = <span class="dv">0</span>;</span>
 <span id="cb1-17"><a href="#cb1-17"></a>        <span class="kw">if</span> (args.<span class="fu">length</span> == <span class="dv">2</span>)</span>
 <span id="cb1-18"><a href="#cb1-18"></a>        {</span>
@@ -67,13 +72,13 @@
 <span id="cb1-27"><a href="#cb1-27"></a>        }</span>
 <span id="cb1-28"><a href="#cb1-28"></a></span>
 <span id="cb1-29"><a href="#cb1-29"></a>        t.<span class="fu">runTest</span>();</span>
-<span id="cb1-30"><a href="#cb1-30"></a>        t.<span class="fu">shutdown</span>();        </span>
+<span id="cb1-30"><a href="#cb1-30"></a>        t.<span class="fu">shutdown</span>();</span>
 <span id="cb1-31"><a href="#cb1-31"></a>    }</span>
 <span id="cb1-32"><a href="#cb1-32"></a></span>
 <span id="cb1-33"><a href="#cb1-33"></a>    <span class="kw">public</span> <span class="dt">static</span> <span class="dt">void</span> <span class="fu">testByteArrayCache</span>(<span class="bu">String</span>[] args)</span>
 <span id="cb1-34"><a href="#cb1-34"></a>    {</span>
 <span id="cb1-35"><a href="#cb1-35"></a>        ByteArrayCacheTest t = <span class="kw">null</span>;</span>
-<span id="cb1-36"><a href="#cb1-36"></a>        <span class="dt">int</span> count = <span class="dv">0</span>; </span>
+<span id="cb1-36"><a href="#cb1-36"></a>        <span class="dt">int</span> count = <span class="dv">0</span>;</span>
 <span id="cb1-37"><a href="#cb1-37"></a>        <span class="dt">int</span> maxMem = <span class="dv">0</span>;</span>
 <span id="cb1-38"><a href="#cb1-38"></a>        <span class="kw">if</span> (args.<span class="fu">length</span> == <span class="dv">2</span>)</span>
 <span id="cb1-39"><a href="#cb1-39"></a>        {</span>
@@ -88,7 +93,7 @@
 <span id="cb1-48"><a href="#cb1-48"></a>        }</span>
 <span id="cb1-49"><a href="#cb1-49"></a></span>
 <span id="cb1-50"><a href="#cb1-50"></a>        t.<span class="fu">runTest</span>();</span>
-<span id="cb1-51"><a href="#cb1-51"></a>        t.<span class="fu">shutdown</span>();        </span>
+<span id="cb1-51"><a href="#cb1-51"></a>        t.<span class="fu">shutdown</span>();</span>
 <span id="cb1-52"><a href="#cb1-52"></a>    }</span>
 <span id="cb1-53"><a href="#cb1-53"></a>    <span class="kw">public</span> <span class="dt">static</span> <span class="dt">void</span> <span class="fu">main</span>(<span class="bu">String</span>[] args)</span>
 <span id="cb1-54"><a href="#cb1-54"></a>    {</span>
@@ -193,15 +198,15 @@
 <span id="cb2-86"><a href="#cb2-86"></a>    {</span>
 <span id="cb2-87"><a href="#cb2-87"></a>        <span class="dt">long</span> start = <span class="bu">System</span>.<span class="fu">currentTimeMillis</span>();</span>
 <span id="cb2-88"><a href="#cb2-88"></a>        <span class="dt">byte</span>[] ba = <span class="kw">new</span> <span class="dt">byte</span>[<span class="dv">10240</span>];</span>
-<span id="cb2-89"><a href="#cb2-89"></a>        <span class="kw">for</span> (<span class="dt">int</span> i = <span class="dv">0</span>; &lt; count; i++)         </span>
-<span id="cb2-90"><a href="#cb2-90"></a>        {             </span>
-<span id="cb2-91"><a href="#cb2-91"></a>            rand.<span class="fu">nextBytes</span>(ba); </span>
-<span id="cb2-92"><a href="#cb2-92"></a>            map.<span class="fu">put</span>(<span class="bu">Integer</span>.<span class="fu">toString</span>(i), ba); </span>
-<span id="cb2-93"><a href="#cb2-93"></a>        }         </span>
+<span id="cb2-89"><a href="#cb2-89"></a>        <span class="kw">for</span> (<span class="dt">int</span> i = <span class="dv">0</span>; &lt; count; i++)</span>
+<span id="cb2-90"><a href="#cb2-90"></a>        {</span>
+<span id="cb2-91"><a href="#cb2-91"></a>            rand.<span class="fu">nextBytes</span>(ba);</span>
+<span id="cb2-92"><a href="#cb2-92"></a>            map.<span class="fu">put</span>(<span class="bu">Integer</span>.<span class="fu">toString</span>(i), ba);</span>
+<span id="cb2-93"><a href="#cb2-93"></a>        }</span>
 <span id="cb2-94"><a href="#cb2-94"></a>        <span class="dt">long</span> insertDuration = <span class="bu">System</span>.<span class="fu">currentTimeMillis</span>() - start;</span>
-<span id="cb2-95"><a href="#cb2-95"></a>         <span class="kw">return</span> insertDuration;         </span>
+<span id="cb2-95"><a href="#cb2-95"></a>         <span class="kw">return</span> insertDuration;</span>
 <span id="cb2-96"><a href="#cb2-96"></a>    }</span>
-<span id="cb2-97"><a href="#cb2-97"></a>     <span class="kw">public</span> <span class="dt">void</span> <span class="fu">runTest</span>()     </span>
+<span id="cb2-97"><a href="#cb2-97"></a>     <span class="kw">public</span> <span class="dt">void</span> <span class="fu">runTest</span>()</span>
 <span id="cb2-98"><a href="#cb2-98"></a>     {</span>
 <span id="cb2-99"><a href="#cb2-99"></a>         <span class="bu">System</span>.<span class="fu">out</span>.<span class="fu">println</span>(<span class="st">&quot;Running test....&quot;</span>);</span>
 <span id="cb2-100"><a href="#cb2-100"></a>         <span class="dt">long</span> insertDuration;</span>
@@ -390,7 +395,7 @@ function show_help {
 if [ $# -ne 2 ]
 then
     show_help
-    exit 0 
+    exit 0
 fi
 
 count=$1
